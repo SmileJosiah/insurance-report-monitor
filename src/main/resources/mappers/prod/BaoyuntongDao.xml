@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.paopaolee.monitor.dao.ds2.BaoyuntongDao">
+    <select
+            id="getReportDataStatistic"
+            resultMap="com.paopaolee.monitor.dao.ds1.GexianDao.statisticMap"
+            resultType="com.paopaolee.monitor.bean.ReportDataStatistic"
+    >
+    <![CDATA[
+        select
+            round(sum(real_settlement_price)/10000,0) real_settlement_price,
+            round(sum(eco_premium)/10000,0) eco_premium
+        from (
+                 select
+                     ifnull(s.occur_insure_fee,i.insure_fee) real_settlement_price,
+                     ifnull(s.occur_brokerage_fee,i.brokerage_fee) eco_premium
+                 FROM travel_byt.insure i
+                          LEFT JOIN travel_byt.insure_extend p
+                                    ON i.insure_num=p.insure_num AND p.deleted=0
+                          LEFT JOIN travel_byt.insure_settlement s
+                                    ON i.insure_num=s.insure_num AND s.deleted=0
+                 where i.issue_state in (3,4,5) AND i.deleted=0
+                   AND s.settle_type IN(1,2,5)
+                   and s.first_insure_num != ''
+                AND (
+                (s.settle_type IN(1,2) and i.issue_time >= DATE_SUB(CURDATE(),INTERVAL 1 day) and i.issue_time < CURDATE())
+                OR
+                (s.settle_type IN (5) and IFNULL(i.withdraw_time,s.create_time) >= DATE_SUB(CURDATE(),INTERVAL 1 day) and IFNULL(i.withdraw_time,s.create_time) < CURDATE()) )
+                             ) tt
+    ]]>
+    </select>
+</mapper>

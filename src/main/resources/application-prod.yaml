@@ -1,0 +1,17 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    ds1:
+      jdbc-url:
+      username:
+      password:
+      driver-class-name:
+    ds2:
+      jdbc-url:
+      username:
+      password:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+mybatis:
+  mapper-locations: classpath:mappers/prod/*.xml

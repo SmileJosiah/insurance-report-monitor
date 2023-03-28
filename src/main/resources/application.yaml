@@ -1,0 +1,44 @@
+spring:
+  mail:
+    host: imap.exmail.qq.com
+    port: 993
+    protocol: imap
+#    username: xxx@xxx.com
+#    password: xxxxxx
+  application:
+    name: insurance-report-monitor
+  profiles:
+    active: dev
+server:
+  port: 8080
+# 图片OCR识别区域配置
+ocr-rectangle:
+  dimension: &dimension
+    width: 100
+    height: 40
+  premium:
+    cur: {x: 261, y: 258, <<: *dimension}
+    month: {x: 361, y: 258, <<: *dimension}
+    year: {x: 1361, y: 258, <<: *dimension}
+  eco:
+    cur: {x: 2161, y: 258, <<: *dimension}
+    month: {x: 2261, y: 258, <<: *dimension}
+    year: {x: 3261, y: 258, <<: *dimension}
+# 邮件监控配置
+monitor:
+  # 日报数据误差范围值
+  report-error-value: 3
+  # 日报截图大小 单位M
+  screenshot-min-size: 3.0
+  # 日报截图尺寸
+  screenshot-width: 4781
+  screenshot-height: 4393
+  # 目标邮件发送时间区间
+  mail-received-start: "00:30:00"
+  mail-received-end: "00:35:00"
+  # 目标邮件关键信息
+  mail-keyword: xxxxx
+  mail-sender: xxxxx
+
+
+

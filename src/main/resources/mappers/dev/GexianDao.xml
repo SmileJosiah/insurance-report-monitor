@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.paopaolee.monitor.dao.ds1.GexianDao">
+    <resultMap id="statisticMap" type="com.paopaolee.monitor.bean.ReportDataStatistic">
+        <result property="realSettlementPrice" column="real_settlement_price" jdbcType="INTEGER" />
+        <result property="ecoPremium" column="eco_premium" jdbcType="INTEGER" />
+    </resultMap>
+
+    <select
+            id="getReportDataStatistic"
+            resultMap="statisticMap"
+            resultType="com.paopaolee.monitor.bean.ReportDataStatistic"
+    >
+        select real_settlement_price, eco_premium from gexian;
+    </select>
+</mapper>

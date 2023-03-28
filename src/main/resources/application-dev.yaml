@@ -1,0 +1,22 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    ds1:
+      jdbc-url: jdbc:mysql://localhost:3306/premium_reporter_1
+      username: root
+      password: root
+      driver-class-name: com.mysql.cj.jdbc.Driver
+    ds2:
+      jdbc-url: jdbc:mysql://localhost:3306/premium_reporter_2
+      username: root
+      password: root
+      driver-class-name: com.mysql.cj.jdbc.Driver
+mybatis:
+  mapper-locations: classpath:mappers/dev/*.xml
+
+
+
+
+

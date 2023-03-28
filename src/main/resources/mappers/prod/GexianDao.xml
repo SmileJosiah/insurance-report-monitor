@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.paopaolee.monitor.dao.ds1.GexianDao">
+    <resultMap id="statisticMap" type="com.paopaolee.monitor.bean.ReportDataStatistic">
+        <result property="realSettlementPrice" column="real_settlement_price" jdbcType="INTEGER" />
+        <result property="ecoPremium" column="eco_premium" jdbcType="INTEGER" />
+    </resultMap>
+
+    <select
+            id="getReportDataStatistic"
+            resultMap="statisticMap"
+            resultType="com.paopaolee.monitor.bean.ReportDataStatistic"
+    >
+    <![CDATA[
+        select
+        round(sum(case
+        when belong ='人身险利润中心' AND ensure_type='长险' AND payment_term < 10 then settlement_price*payment_term*0.1
+        ELSE settlement_price END)/10000) real_settlement_price,
+        round(sum(eco_premium)/10000) eco_premium
+        from (
+        select
+        DATE_FORMAT(issue_time, '%Y%m%d') stat_date,
+        ensure_type,
+        payment_term,
+        real_settlement_price/100 settlement_price,
+        eco_premium/100 eco_premium,
+        ifnull((select v.value from pluto_ps.t_attribute_value v where v.attribute_id = 431 and v.control_value in
+        (select tt.attribute_value from pluto_ps.t_extend_attribute_product tt join pluto_ps.t_extend_attribute q on q.id= tt.extend_attr_id where tt.product_id =vv.product_id
+        and q.attribute_id = 431 and tt.deleted = 0 and q.deleted = 0) limit 1),'人身险利润中心') belong
+        from (
+        select
+        i.insure_num,
+        '投保' insure_status,
+        i.passport_source platform,
+        i.passport_id user_id,
+        i.card_number,
+        case when i.card_type_id in (10,11,12,13,14) then 0 else 1 end applicant_type,
+        case when TIMESTAMPDIFF(day, i.start_date, i.end_date)>366 then '长险'
+        when TIMESTAMPDIFF(day, i.start_date, i.end_date) in (365,366) then '一年期'
+        when TIMESTAMPDIFF(day, i.start_date, i.end_date) <365 then '短险'
+        end ensure_type,
+        i.company_id,
+        i.company_name,
+        '' branch_id,
+        '' branch_name,
+        i.product_id,
+        i.product_name,
+        i.product_plan_id,
+        '个险' product_type,
+        i.category_id,
+        i.category_name,
+        i.parent_category_id,
+        i.parent_category_name,
+        ifnull((select case ep.sum_insured when 0 then 1 else ep.sum_insured end from pluto_is_web.t_ensure_project_risk ep where ep.insure_num = i.insure_num AND ep.project_name like '%费年限' order by create_time desc limit 1), 1) payment_term,
+        (select ep.insured_text from pluto_is_web.t_ensure_project_risk ep where ep.insure_num = i.insure_num AND ep.project_name = '缴费类型' order by create_time desc limit 1) payment_form,
+        (i.`settlement_price` + ifnull(ifnull(ar.attr_value,a.attr_value), 0)) real_settlement_price,
+        case when i.insure_type = 0 then (i.`settlement_price` + ifnull(ifnull(ar.attr_value,a.attr_value), 0))*(e.eco_rate/100)
+        when i.insure_type = 1 then (select sum(case when c.economy_type = 2 and c.insurance_economy_premium is not null then c.insurance_economy_premium*100
+        else ifnull(c.economy_premium,0)*100 end)
+        from pluto_economy.t_calculate_detail c where b.id=c.result_id AND c.deleted=0 AND c.period_number=1 limit 1)
+        end eco_premium,
+        re.issue_time
+        from pluto_is_web.t_insure_route i
+        left join pluto_is_web.t_insure_attribute a
+        on  i.insure_num = a.insure_num AND a.attr_key = 'PremiumSerialPrice'
+        left join pluto_is_web.t_insure_attribute ar
+        on  i.insure_num = ar.insure_num AND ar.attr_key = 'ManualPremiumSerialPrice'
+        left join pluto_is_web.t_economy_rate e
+        on i.insure_num = e.insure_num
+        left join pluto_economy.t_calculate_result b ON i.insure_num=b.insure_num AND b.deleted=0
+        join (
+        select
+        ir.insure_num, min(ir.create_time) issue_time
+        from pluto_is_web.t_insurant_relation ir
+        where ir.insure_num in (
+        select
+        distinct insure_num
+        from pluto_is_web.t_insurant_relation r
+        where
+        r.create_time >= DATE_SUB(CURDATE(),INTERVAL 1 day)
+        and r.create_time < CURDATE()
+        ) group by ir.insure_num
+        having
+        min(ir.create_time) >= DATE_SUB(CURDATE(),INTERVAL 1 day)
+        and min(ir.create_time) < CURDATE()
+        ) re
+        on i.insure_num = re.insure_num
+        where
+        i.deleted=0
+        and i.pay_status=1
+        and i.issue_status=1
+        group by i.insure_num
+        union all
+        select
+        o.insure_num,
+        '投保' insure_status,
+        o.passport_source platform,
+        o.passport_id user_id,
+        o.card_number,
+        case when o.card_type_id in (10,11,12,13,14) then 0 else 1 end applicant_type,
+        case when TIMESTAMPDIFF(day, o.start_date, o.end_date)>366 then '长险'
+        when TIMESTAMPDIFF(day, o.start_date, o.end_date) in (365,366) then '一年期'
+        when TIMESTAMPDIFF(day, o.start_date, o.end_date) <365 then '短险'
+        end ensure_type,
+        o.company_id,
+        o.company_name,
+        o.branch_id branch_id,
+        o.branch_name branch_name,
+        o.product_id,
+        o.product_name,
+        o.product_plan_id,
+        '个险线下单' product_type,
+        o.category_id,
+        o.category_name,
+        o.parent_category_id,
+        o.parent_category_name,
+        (select case when payment_term = '趸交' then 1
+        when payment_term like '至%' then (SUBSTRING(payment_term,2) + 0 - timestampdiff(year, o.birthdate,create_time))
+        else payment_term+0 end
+        from pluto_is_web.t_offline_insurance_relation where insurance_specie_id = main_insurance_id and insure_num=o.insure_num limit 1) payment_term,
+        (select payment_type from pluto_is_web.t_offline_insurance_relation where insurance_specie_id = main_insurance_id and insure_num=o.insure_num limit 1) payment_form,
+        o.pay_amount real_settlement_price,
+        (select sum(case when c.economy_type = 2 and c.insurance_economy_premium is not null then c.insurance_economy_premium*100
+        else ifnull(c.economy_premium,0)*100 end)
+        from pluto_economy.t_calculate_detail c where b.id=c.result_id AND c.deleted=0 AND c.period_number=1 limit 1) as eco_premium,
+        o.create_time issue_time
+        from pluto_is_web.t_offline_insure o
+        LEFT JOIN pluto_economy.t_calculate_result b ON o.insure_num=b.insure_num AND b.deleted=0
+        where o.deleted = 0
+        and o.create_time >= DATE_SUB(CURDATE(),INTERVAL 1 day)
+        and o.create_time < CURDATE()
+        group by o.insure_num
+        union all
+        select
+        a.insure_num,
+        '退保' insure_status,
+        o.passport_source platform,
+        o.passport_id user_id,
+        o.card_number,
+        case when o.card_type_id in (10,11,12,13,14) then 0 else 1 end applicant_type,
+        case when TIMESTAMPDIFF(day, o.start_date, o.end_date)>366 then '长险'
+        when TIMESTAMPDIFF(day, o.start_date, o.end_date) in (365,366) then '一年期'
+        when TIMESTAMPDIFF(day, o.start_date, o.end_date) <365 then '短险'
+        end ensure_type,
+        o.company_id,
+        o.company_name,
+        o.branch_id branch_id,
+        o.branch_name branch_name,
+        o.product_id,
+        o.product_name,
+        o.product_plan_id,
+        '个险线下单' product_type,
+        o.category_id,
+        o.category_name,
+        o.parent_category_id,
+        o.parent_category_name,
+        (select case when payment_term = '趸交' then 1
+        when payment_term like '至%' then (SUBSTRING(payment_term,2) + 0 - timestampdiff(year, o.birthdate,create_time))
+        else payment_term+0 end
+        from pluto_is_web.t_offline_insurance_relation where insurance_specie_id = main_insurance_id and insure_num=o.insure_num limit 1) payment_term,
+        (select payment_type from pluto_is_web.t_offline_insurance_relation where insurance_specie_id = main_insurance_id and insure_num=o.insure_num limit 1) payment_form,
+        case when a.retreat_amount = 0 then -o.pay_amount else -a.retreat_amount end as real_settlement_price,
+        (select -sum(case when c.economy_type = 2 and c.insurance_economy_premium is not null then c.insurance_economy_premium*100
+        else ifnull(c.economy_premium,0)*100 end)
+        from pluto_economy.t_calculate_detail c where b.id=c.result_id AND c.deleted=0 AND c.period_number=1 limit 1) as eco_premium,
+        a.create_time issue_time
+        from pluto_is_web.t_offline_insure_cancel a
+        join pluto_is_web.t_offline_insure o ON a.insure_num=o.insure_num AND o.deleted=0
+        LEFT JOIN pluto_economy.t_calculate_result b ON a.insure_num=b.insure_num AND b.deleted=0
+        where
+        a.create_time >= DATE_SUB(CURDATE(),INTERVAL 1 day)
+        and a.create_time < CURDATE()
+        group by a.insure_num
+
+        union all
+        select
+        i.insure_num,
+        '退保' insure_status,
+        i.passport_source platform,
+        i.passport_id user_id,
+        i.card_number,
+        case when i.card_type_id in (10,11,12,13,14) then 0 else 1 end applicant_type,
+        case when TIMESTAMPDIFF(day, i.start_date, i.end_date)>366 then '长险'
+        when TIMESTAMPDIFF(day, i.start_date, i.end_date) in (365,366) then '一年期'
+        when TIMESTAMPDIFF(day, i.start_date, i.end_date) <365 then '短险'
+        end ensure_type,
+        i.company_id,
+        i.company_name,
+        '' branch_id,
+        '' branch_name,
+        i.product_id,
+        i.product_name,
+        i.product_plan_id,
+        '个险' product_type,
+        i.category_id,
+        i.category_name,
+        i.parent_category_id,
+        i.parent_category_name,
+        ifnull((select case ep.sum_insured when 0 then 1 else ep.sum_insured end from pluto_is_web.t_ensure_project_risk ep where ep.insure_num = i.insure_num AND ep.project_name like '%费年限' order by create_time desc limit 1), 1) payment_term,
+        (select ep.insured_text from pluto_is_web.t_ensure_project_risk ep where ep.insure_num = i.insure_num AND ep.project_name = '缴费类型' order by create_time desc limit 1) payment_form,
+        case t.short_term_pay when 0 then
+        case
+        when t.merged = 1 then -(i.`settlement_price` + ifnull(ifnull(ar.attr_value,a.attr_value), 0))
+        when t.merged = 0 then case refund_amount when 0 then -ifnull(t.real_pay,0) else -t.refund_amount end
+        end
+        else
+        ifnull(-sum(t.real_pay-t.short_term_pay), 0)
+        end real_settlement_price,
+        case
+        when i.insure_type = 0 then
+        (case t.short_term_pay when 0 then
+        case
+        when t.merged = 1 then -(i.`settlement_price` + ifnull(ifnull(ar.attr_value,a.attr_value), 0))
+        when t.merged = 0 then case refund_amount when 0 then -ifnull(t.real_pay,0) else -t.refund_amount end
+        end
+        else
+        ifnull(-sum(t.real_pay-t.short_term_pay), 0)
+        end) * (select eco_rate/100 from pluto_is_web.t_economy_rate where insure_num = i.insure_num limit 1)
+        when i.insure_type = 1 then
+        (select -sum(case when c.economy_type = 2 and c.insurance_economy_premium is not null then c.insurance_economy_premium*100
+        else ifnull(c.economy_premium,0)*100 end)
+        from pluto_economy.t_calculate_result b left join pluto_economy.t_calculate_detail c ON b.id=c.result_id AND c.deleted=0 AND c.period_number=1 where i.insure_num=b.insure_num AND b.deleted=0 limit 1)
+        end eco_premium,
+        (select r.complete_time from pluto_pos.t_retreat_application r where r.insure_num = i.insure_num and r.complete_time >= DATE_SUB(CURDATE(),INTERVAL 1 day) and r.complete_time < CURDATE() order by r.complete_time desc limit 1) issue_time
+        from (
+        select
+        sum(short_term_pay) short_term_pay,
+        sum(refund_amount) refund_amount,
+        sum(real_pay) real_pay,
+        insure_num,
+        retreat_gateway,
+        merged,
+        sum(pay_amount) pay_amount,
+        sum(real_settlement_price) real_settlement_price
+        from(
+        select
+        ifnull(ff.short_term_pay,0) short_term_pay,
+        ifnull(ff.refund_amount,0) refund_amount,
+        ifnull(ff.real_pay,0) real_pay,
+        rr.insure_num,
+        rr.retreat_gateway,
+        rr.merged,
+        (select -(refund_balance + refund_partner_gold + refund_gold + ifnull(refund_red_packet, 0) + refund_money) from pluto_pos.t_retreat_refund pp where pp.insure_num = rr.insure_num and pp.insurant_id = ff.insurant_id limit 1) pay_amount,
+        (select -settlement_price from pluto_is_web.t_insurant_price pp where pp.insure_num = rr.insure_num and pp.insurant_id = ff.insurant_id limit 1) real_settlement_price
+        from pluto_pos.t_retreat_application rr
+        left join pluto_pos.t_retreat_refund ff
+        on rr.retreat_num = ff.retreat_num
+        where rr.complete_time >= DATE_SUB(CURDATE(),INTERVAL 1 day)
+        and rr.complete_time < CURDATE()
+        and rr.refund_status = 4
+        and (rr.hesitate_period != 0 or rr.hesitate_period is null)
+        and rr.merged = 0
+        and rr.deleted=0
+        union all
+        select
+        ifnull(ff.short_term_pay,0) short_term_pay,
+        ifnull(ff.refund_amount,0) refund_amount,
+        ifnull(ff.real_pay,0) real_pay,
+        rr.insure_num,
+        rr.retreat_gateway,
+        rr.merged,
+        0 pay_amount,
+        0 real_settlement_price
+        from pluto_pos.t_retreat_application rr
+        left join pluto_pos.t_retreat_refund ff
+        on rr.retreat_num = ff.retreat_num
+        where rr.complete_time >= DATE_SUB(CURDATE(),INTERVAL 1 day)
+        and rr.complete_time < CURDATE()
+        and rr.refund_status = 4
+        and (rr.hesitate_period != 0 or rr.hesitate_period is null)
+        and rr.merged = 1
+        and rr.deleted=0
+        ) v
+        group by insure_num, retreat_gateway, merged
+        ) t join pluto_is_web.t_insure_route i
+        on t.insure_num = i.insure_num
+        left join pluto_is_web.t_insure_attribute a
+        on  i.insure_num = a.insure_num AND a.attr_key = 'PremiumSerialPrice'
+        left join pluto_is_web.t_insure_attribute ar
+        on  i.insure_num = ar.insure_num AND ar.attr_key = 'ManualPremiumSerialPrice'
+        where
+        i.pay_status = 1 and i.issue_status=1
+        and not exists (select 1 from pluto_pos.t_retreat_application r where r.hesitate_period=0 and r.complete_time>=DATE_SUB(CURDATE(),INTERVAL 1 day) and r.complete_time<CURDATE()
+        and i.parent_category_name!='财产保险' and i.insure_num=r.insure_num)
+        group by i.insure_num
+        ) vv
+        where not exists (select 1 from pluto_ps.t_economy_cost z where z.is_technical_service = 1 and z.plan_id = vv.product_plan_id)
+        and not exists (select 1 from pluto_is_web.t_insure_api_test where create_time>= DATE_SUB(CURDATE(),INTERVAL 1 day) and insure_num=vv.insure_num)
+        ) tt
+    ]]>
+    </select>
+</mapper>
